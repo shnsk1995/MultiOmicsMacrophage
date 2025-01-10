@@ -3,8 +3,6 @@ source("Libraries.R")
 source("Functions.R")
 
 
-source("Demo.R")
-
 
 #Read the file paths
 
@@ -172,7 +170,7 @@ seuratSKM2 <- AddAnnotations(seuratSKM2,annotations)
 
 seuratSFL1 <- FindDoublets(seuratSFL1)
 
-seuratSFL1$CellType <- seuratSFL1$DF.classifications_0.25_0.3_565
+seuratSFL1$CellType <- seuratSFL1$DF.classifications_0.25_0.3_563
 
 seuratSFL2 <- FindDoublets(seuratSFL2)
 
@@ -184,7 +182,7 @@ seuratSKM1$CellType <- seuratSKM1$DF.classifications_0.25_0.13_430
 
 seuratSKM2 <- FindDoublets(seuratSKM2)
 
-seuratSKM2$CellType <- seuratSKM2$DF.classifications_0.25_0.18_481
+seuratSKM2$CellType <- seuratSKM2$DF.classifications_0.25_0.22_481
 
 
 
@@ -212,7 +210,7 @@ SFL1Plot+SFL2Plot+SKM1Plot+SKM2Plot
 
 
 
-seurat <- merge(seuratSFL1,y=c(seuratSFL2,seuratSKM1,seuratSKM2), project = "MultiOmics")
+seurat <- merge(seuratSFL1,y=c(seuratSFL2,seuratSKM1,seuratSKM2), project = "MultiOmicsMacrophage")
 
 
 
@@ -253,158 +251,186 @@ SaveSeuratRds(seurattest, file = "data/BethSeurat.RDS")
 seurattest <- readRDS("data/BethSeurat.RDS")
 
 
-
-install.packages("clustree")
-
+seurattest <- VisualizeClustree(0,1,0.1,seurattest)
 
 
-DefaultAssay(seurattest) <- "RNA"
+seuratJoined <- JoinLayers(seurattest)
 
-seurattest <- FindClusters(seurattest, resolution = 0.3, algorithm = 3,cluster.name = "cca_clusters_0.3")
+counts <- seuratJoined@assays$RNA$counts
 
-seurattest <- FindClusters(seurattest, resolution = 0.7, algorithm = 3,cluster.name = "cca_clusters_0.7")
+new_clusters = testClusters(counts, 
+                            cluster_ids = as.character(seuratJoined$cca_clusters_0_1_0.2),
+                            alpha = 0.05, #FWER control, can be relaxed if needed
+                            num_features = 2500,#default number
+                            num_PCs = 30, #default number
+                            parallel = FALSE, #can set to FALSE
+                            cores = 1)
+table(new_clusters[[1]],seuratJoined$cca_clusters_0_1_0.2)
+class(new_clusters)
+new_clusters[[2]]#
+seuratJoined$Seurat <- seuratJoined$cca_clusters_0_1_0.2
+seuratJoined$Corrected_Seurat <- new_clusters[[1]]
+ggarrange(#DimPlot(scnorm_nocc_Pfncntss,group.by='scSHC')+NoLegend(),
+  DimPlot(seuratJoined,group.by='Seurat', label=T)+NoLegend(),
+  DimPlot(seuratJoined,group.by='Corrected_Seurat', label=T)+NoLegend(),
+  nrow=1)
+d1 = DimPlot(seuratJoined,group.by='Seurat', label=T) #+
+d2 = DimPlot(seuratJoined,group.by='Corrected_Seurat', label=T) #+
+#NoLegend()
+d1 + d2
+ggsave("compare_clusters_Seurat.png", width=10, height=8, units="in", dpi=588)
+ggsave("compare_clusters_Seurat.pdf", width=10, height=8)
 
 
+seuratJoined$SampleType
 
-# Create a data frame with cluster assignments for each resolution
+DimPlot(seuratJoined,group.by='Corrected_Seurat', label=T, split.by = "orig.ident")
 
-cluster_data <- data.frame(
-  
-  cell_id = colnames(seurattest),
-  
-  resolution_0.3 = seurattest$cca_clusters_0.3,  # Cluster assignments at resolution 0.3
-  
-  resolution_0.5 = seurattest$cca_clusters,  # Cluster assignments at resolution 0.5
-  
-  resolution_0.7 = seurattest$cca_clusters_0.7   # Cluster assignments at resolution 0.7
-  
+SFL1New1Count <- nrow(seuratJoined@meta.data[seuratJoined@meta.data$orig.ident == "SFL1" & seuratJoined@meta.data$Corrected_Seurat == "new1",])
+SFL2New1Count <- nrow(seuratJoined@meta.data[seuratJoined@meta.data$orig.ident == "SFL2" & seuratJoined@meta.data$Corrected_Seurat == "new1",])
+SKM1New1Count <- nrow(seuratJoined@meta.data[seuratJoined@meta.data$orig.ident == "SKM1" & seuratJoined@meta.data$Corrected_Seurat == "new1",])
+SKM2New1Count <- nrow(seuratJoined@meta.data[seuratJoined@meta.data$orig.ident == "SKM2" & seuratJoined@meta.data$Corrected_Seurat == "new1",])
+
+
+SFL1New2Count <- nrow(seuratJoined@meta.data[seuratJoined@meta.data$orig.ident == "SFL1" & seuratJoined@meta.data$Corrected_Seurat == "new2",])
+SFL2New2Count <- nrow(seuratJoined@meta.data[seuratJoined@meta.data$orig.ident == "SFL2" & seuratJoined@meta.data$Corrected_Seurat == "new2",])
+SKM1New2Count <- nrow(seuratJoined@meta.data[seuratJoined@meta.data$orig.ident == "SKM1" & seuratJoined@meta.data$Corrected_Seurat == "new2",])
+SKM2New2Count <- nrow(seuratJoined@meta.data[seuratJoined@meta.data$orig.ident == "SKM2" & seuratJoined@meta.data$Corrected_Seurat == "new2",])
+
+
+cellCountDf <- data.frame(
+  SFL1 = c(SFL1New1Count,SFL1New2Count),
+  SFL2 = c(SFL2New1Count,SFL2New2Count),
+  SKM1 = c(SKM1New1Count,SKM1New2Count),
+  SKM2 = c(SKM2New1Count,SKM2New2Count)
 )
 
+rownames(cellCountDf) <- c("new1","new2")
+
+normalizedCellCountDf <- sweep(cellCountDf, 2, colSums(cellCountDf), FUN = "/")
+
+normalizedCellCountDf$ClusterType <- rownames(normalizedCellCountDf)
+normalizedCellCountDf[] <- lapply(normalizedCellCountDf, as.character)
+normalizedCellCountDfLong <- pivot_longer(normalizedCellCountDf, cols = -"ClusterType")
+colnames(normalizedCellCountDfLong) <- c("ClusterType","SampleType","CellCountProportion")
+
+Plot1 <- ggplot(normalizedCellCountDfLong[grep("1",normalizedCellCountDfLong$SampleType),], aes(x = SampleType, y = CellCountProportion, fill = factor(ClusterType))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Cluster Type", y = "Cell Count Proportion", fill = "Sample Type") +
+  theme_minimal()
+
+Plot2 <- ggplot(normalizedCellCountDfLong[grep("2",normalizedCellCountDfLong$SampleType),], aes(x = SampleType, y = CellCountProportion, fill = factor(ClusterType))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Cluster Type", y = "Cell Count Proportion", fill = "Sample Type") +
+  theme_minimal()
+
+Plot1/Plot2
+
+
+Idents(seuratJoined) <- "Corrected_Seurat"
 
 
 
 
-# Convert to long format
+allMarkers <- FindAllMarkers(seuratJoined)
 
-cluster_data_long <- cluster_data %>%
+
+
+
+
+
+
+
+
+
+
+clusterNew1seurat <- subset(seuratJoined,idents="new1")
+clusterNew2seurat <- subset(seuratJoined,idents="new2")
+
+
+
+
+
+
+clusterNew1Markers <- FindMarkers(
   
-  gather(key = "resolution", value = "cluster", -cell_id) %>%
-  
-  arrange(resolution, cell_id)  # Make sure the data is sorted
-
-
-
-# Use clustree to visualize cluster stability across resolutions
-
-clustree(cluster_data, prefix = "resolution_")
-
-
-
-data(nba_clusts)
-
-clustree(nba_clusts, prefix = "K")
-
-
-
-head(seurattest@meta.data)
-
-
-
-allMarkers <- FindAllMarkers(seurattest)
-
-
-
-seurattest <- JoinLayers(seurattest)
-
-
-
-Idents(seurattest) <- "seurat_clusters"
-
-Idents(seurattest) <- "SampleType"
-
-
-
-
-
-Idents(seurattest)
-
-
-
-DefaultAssay(seurattest) <- "RNA"
-
-
-
-markers <- FindAllMarkers(
-  
-  object = seurattest, 
-  
-  test.use = "wilcox",
-  
-  verbose = TRUE
-  
-)
-
-
-
-
-
-
-
-cluster0seurat <- subset(seurattest,idents="0")
-
-
-
-
-
-
-
-cluster0Markers <- FindMarkers(
-  
-  object = cluster0seurat,
+  object = clusterNew1seurat,
   
   ident.1 = "KnockOut",
   
   ident.2 = "WildType",
   
-  group.by = "SampleType"
+  group.by = "SampleType",
+  
+  logfc.threshold = 1,
+  
+  test.use = "wilcox"
   
 )
 
 
+clusterNew2Markers <- FindMarkers(
+  
+  object = clusterNew2seurat,
+  
+  ident.1 = "KnockOut",
+  
+  ident.2 = "WildType",
+  
+  group.by = "SampleType",
+  
+  logfc.threshold = 1,
+  
+  test.use = "wilcox"
+  
+)
+
+geneName <- "Erich6"
+
+geneRegions <- GetGenomeRanges(seuratJoined,geneName)
+
+GenerateCoveragePlots(seuratJoined, geneRegions,geneName)
+
+Idents(seuratJoined) <- "SampleType"
+ranges.show <- StringToGRanges(geneRegions[15:20])
+CoveragePlot(seuratJoined,assay = "ATAC",
+             region = geneRegions[15:20],
+             features = "Cmss1", 
+             expression.assay = "RNA",
+             region.highlight = ranges.show, 
+             split.by = "Corrected_Seurat")
+
+clusterNew1seurat@assays$ATAC@annotation[clusterNew1seurat@assays$ATAC@annotation$gene_name == "Siah2",]
+
+Idents(clusterNew1seurat) <- "SampleType"
+
+clusterNew1seuratWT <- subset(clusterNew1seurat, idents = "WildType")
+
+clusterNew1seuratKO <- subset(clusterNew1seurat, idents = "KnockOut")
 
 
 
-cluster0seurat@assays$ATAC@annotation[cluster0seurat@assays$ATAC@annotation$gene_name == "Pelo",]
+
+
+DefaultAssay(clusterNew1seuratWT) <- "ATAC"
 
 
 
-Idents(cluster0seurat) <- "SampleType"
+p1 <- CoveragePlot(clusterNew1seuratWT,assay = "ATAC",region = c("chr3-58688799-58689631","chr3-58690316-58691181","chr3-58691816-58692742"),features = "Siah2", expression.assay = "RNA")
 
 
 
-cluster0seuratWT <- subset(cluster0seurat, idents = "WildType")
+DefaultAssay(clusterNew1seuratKO) <- "ATAC"
 
 
 
-cluster0seuratKO <- subset(cluster0seurat, idents = "KnockOut")
+p2 <- CoveragePlot(clusterNew1seuratKO,assay = "ATAC",region = c("chr3-58688799-58689631","chr3-58690316-58691181","chr3-58691816-58692742"),features = "Siah2", expression.assay = "RNA")
 
 
 
+p1/p2
 
 
-DefaultAssay(cluster0seuratWT) <- "ATAC"
-
-
-
-CoveragePlot(cluster0seuratWT,region = "chr16-57326609-57327532",features = "Cmss1")
-
-
-
-DefaultAssay(cluster0seuratKO) <- "ATAC"
-
-
-
-CoveragePlot(cluster0seuratKO,region = "chr16-57326609-57327532",features = "Cmss1")
 
 
 
@@ -420,7 +446,7 @@ CoveragePlot(cluster0seurat,region = "chr13-115088530-115088961",features = "Pel
 
 
 
-rownames(cluster0seuratWT)[24000:25000]
+rownames(clusterNew1seuratWT)[24000:25000]
 
 
 

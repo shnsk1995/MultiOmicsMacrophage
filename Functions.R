@@ -681,3 +681,188 @@ RemoveAmbientRNA <- function(seurat){
   return(seurat)
   
 }
+
+
+
+
+
+
+VisualizeClustree <- function(lowerResolutionThreshold, higherResolutionThreshold, thresholdIncrement, seuratObject){
+  
+  
+  DefaultAssay(seuratObject) <- "RNA"
+  
+  for (i in seq(lowerResolutionThreshold,higherResolutionThreshold,thresholdIncrement)) {
+    
+    seuratObject <- FindClusters(seuratObject, resolution = i, algorithm = 3,cluster.name = paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",i))
+    
+  }
+  
+  
+  cluster_data <- data.frame(
+    
+    cell_id = colnames(seuratObject),
+    
+    resolution_1 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold)]], 
+    
+    resolution_2 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold + thresholdIncrement)]], 
+    
+    resolution_3 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold + (2 * thresholdIncrement))]],
+    
+    resolution_4 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold + (3 * thresholdIncrement))]], 
+    
+    resolution_5 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold + (4 * thresholdIncrement))]], 
+    
+    resolution_6 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold + (5 * thresholdIncrement))]],
+    
+    resolution_7 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold + (6 * thresholdIncrement))]], 
+    
+    resolution_8 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold + (7 * thresholdIncrement))]], 
+    
+    resolution_9 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold + (8 * thresholdIncrement))]],
+    
+    resolution_10 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold + (9 * thresholdIncrement))]],
+    
+    resolution_11 = seuratObject[[paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_",lowerResolutionThreshold + (10 * thresholdIncrement))]]
+)
+  
+  
+  # # # Convert to long format
+  # # 
+  # cluster_data_long <- cluster_data %>%
+  # 
+  #   gather(key = "resolution", value = "cluster", -cell_id) %>%
+  # 
+  #   arrange(resolution, cell_id)  # Make sure the data is sorted
+  
+  
+  
+  # Use clustree to visualize cluster stability across resolutions
+  
+  clust <- clustree(cluster_data, prefix = paste0("cca_clusters_",lowerResolutionThreshold,"_",higherResolutionThreshold,"_"))
+  
+  
+  jpeg(filename = paste0("Clustree_",lowerResolutionThreshold,"_",higherResolutionThreshold,".jpeg"), quality = 100,height = 2000, width = 2000)
+  
+  print(clust)
+  
+  dev.off()
+  
+  
+  return(seuratObject)
+  
+}
+
+
+
+GetGenomeRanges <- function(seuratObject, genes){
+  
+  
+  
+  if(length(genes) == 1){
+    
+    geneRanges <- seuratObject@assays$ATAC@annotation[seuratObject@assays$ATAC@annotation$gene_name == genes,]
+    
+    DefaultAssay(seuratObject) <- "ATAC"
+    
+    allRegions <- rownames(seuratObject)
+    
+    allRegions <- strsplit(allRegions, "[--]")
+    
+    allRegionsDF <- do.call(rbind, lapply(allRegions, function(x) {
+      data.frame(Chromosome = x[1], Start = as.numeric(x[2]), End = as.numeric(x[3]))
+    }))
+    
+    allGeneRanges <- GRanges(
+      seqnames = allRegionsDF$Chromosome,
+      ranges = IRanges(start = allRegionsDF$Start, end = allRegionsDF$End)
+    )
+    
+    overlaps <- findOverlaps(geneRanges, allGeneRanges)
+    
+    overlappingRanges <- allGeneRanges[subjectHits(overlaps)]
+    
+    overlappingRanges
+    
+    genomicRanges <- paste(seqnames(overlappingRanges), start(overlappingRanges), end(overlappingRanges), sep = "-")
+    
+    return(genomicRanges)
+  }
+  
+}
+
+
+
+GenerateCoveragePlots <- function(seuratObject, geneRegions, geneName){
+  
+  Idents(seuratObject) <- "SampleType"
+  
+  if(length(geneRegions) < 6){
+    
+    ranges.show <- StringToGRanges(geneRegions)
+    
+    c <- CoveragePlot(seuratObject,assay = "ATAC",
+                 region = geneRegions,
+                 features = geneName, 
+                 expression.assay = "RNA",
+                 region.highlight = ranges.show, 
+                 split.by = "Corrected_Seurat")
+    
+    if(!dir.exists("data/CoveragePlots")){
+      dir.create("data/CoveragePlots")
+    }
+    
+    if(!dir.exists(paste0("data/CoveragePlots/",geneName))){
+      dir.create(paste0("data/CoveragePlots/",geneName))
+    }
+    
+    jpeg(filename = paste0("data/CoveragePlots/",geneName,"/",geneName,".jpeg"),quality = 100, height = 800, width = 1000)
+    
+    print(c)
+    
+    dev.off()
+    
+  }else{
+    
+    iterations <- (length(geneRegions)/6) + 1
+    
+    j <- 1
+    k <- 6
+    for (i in 1:iterations) {
+      
+      if(k>length(geneRegions)) k <- length(geneRegions)
+      
+      ranges.show <- StringToGRanges(geneRegions[j:k])
+      
+      c <- CoveragePlot(seuratObject,assay = "ATAC",
+                        region = geneRegions[j:k],
+                        features = geneName, 
+                        expression.assay = "RNA",
+                        region.highlight = ranges.show, 
+                        split.by = "Corrected_Seurat")
+      
+      if(!dir.exists("data/CoveragePlots")){
+        dir.create("data/CoveragePlots")
+      }
+      
+      if(!dir.exists(paste0("data/CoveragePlots/",geneName))){
+        dir.create(paste0("data/CoveragePlots/",geneName))
+      }
+      
+      jpeg(filename = paste0("data/CoveragePlots/",geneName,"/",geneName,"_",j,"_",k,".jpeg"),quality = 100, height = 800, width = 1000)
+      
+      print(c)
+      
+      dev.off()
+      
+      j <- j+6
+      k <- k+6
+      
+      
+    }
+    
+  }
+  
+  
+  
+}

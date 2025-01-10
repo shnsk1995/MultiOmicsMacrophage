@@ -63,3 +63,11 @@ library(biovizBase)
 library(Matrix)
 
 library(SoupX)
+
+library(clustree)
+
+library(scSHC)
+
+library(ggpubr)
+
+library(GenomicRanges)
