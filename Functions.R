@@ -48,12 +48,6 @@ CreateProjectSeurat <- function(filePaths,fileIndexes,fileNames){
   
 }
 
-
-
-
-
-
-
 DoStandardSingleCellAnalysis <- function(seuratObject){
   
   
@@ -214,12 +208,6 @@ DoStandardSingleCellAnalysis <- function(seuratObject){
   
 }
 
-
-
-
-
-
-
 IntegrateSeuratObject <- function(seuratObject){
   
   
@@ -241,14 +229,6 @@ IntegrateSeuratObject <- function(seuratObject){
   
   
 }
-
-
-
-
-
-
-
-
 
 PerformAfterIntegrationStandardAnalysis <- function(seuratObject){
   
@@ -314,10 +294,6 @@ PerformAfterIntegrationStandardAnalysis <- function(seuratObject){
   
 }
 
-
-
-
-
 AddAnnotations <- function(seurat,annotations){
   
   
@@ -336,20 +312,7 @@ AddAnnotations <- function(seurat,annotations){
   
 }
 
-
-
-
-
 DoSignac <- function(seurat){
-  
-  
-  
-  
-  
-  
-  
-  
-  
   
   
   DefaultAssay(seurat) <- "ATAC"
@@ -371,25 +334,19 @@ DoSignac <- function(seurat){
   
   
   
-  
-  
-  
-  Idents(seurat) <- "all"  # group all cells together, rather than by replicate
-  
   VlnPlot(
     
     seurat,
     
-    features = c("nCount_RNA", "nCount_ATAC", "TSS.enrichment",
+    features = c("nCount_ATAC", "TSS.enrichment",
                  
                  "nucleosome_signal", "blacklist_fraction"),
     
     pt.size = 0.1,
     
-    ncol = 5
+    ncol = 4
     
   )
-  
   
   
   
@@ -406,11 +363,11 @@ DoSignac <- function(seurat){
       
       CellType == "Singlet" &
       
-      nCount_ATAC > 500
+      nCount_ATAC > 500 &
+      
+      nucleosome_signal < 2
     
   )
-  
-  seurat
   
   
   
@@ -448,7 +405,7 @@ DoSignac <- function(seurat){
   
   seurat <- FindNeighbors(seurat, dims = 1:20, reduction = "integrated.cca")
   
-  seurat <- FindClusters(seurat, resolution = 0.5, algorithm = 3,cluster.name = "cca_clusters")
+  seurat <- FindClusters(seurat, resolution = 0.2, algorithm = 3,cluster.name = "cca_clusters")
   
   
   
@@ -483,10 +440,6 @@ DoSignac <- function(seurat){
   
   
 }
-
-
-
-
 
 FindDoublets <- function(seurat){
   
@@ -626,10 +579,6 @@ FindDoublets <- function(seurat){
   
 }
 
-
-
-
-
 RemoveAmbientRNA <- function(seurat){
   
   
@@ -681,11 +630,6 @@ RemoveAmbientRNA <- function(seurat){
   return(seurat)
   
 }
-
-
-
-
-
 
 VisualizeClustree <- function(lowerResolutionThreshold, higherResolutionThreshold, thresholdIncrement, seuratObject){
   
@@ -753,8 +697,6 @@ VisualizeClustree <- function(lowerResolutionThreshold, higherResolutionThreshol
   
 }
 
-
-
 GetGenomeRanges <- function(seuratObject, genes){
   
   
@@ -791,78 +733,225 @@ GetGenomeRanges <- function(seuratObject, genes){
   
 }
 
-
-
-GenerateCoveragePlots <- function(seuratObject, geneRegions, geneName){
+GenerateCoveragePlots <- function(seuratObject, genesOfInterest){
   
   Idents(seuratObject) <- "SampleType"
   
-  if(length(geneRegions) < 6){
+  
+  if(!dir.exists("data/CoveragePlots")){
+           dir.create("data/CoveragePlots")
+  }
+  
+  for (gene in genesOfInterest) {
     
-    ranges.show <- StringToGRanges(geneRegions)
-    
-    c <- CoveragePlot(seuratObject,assay = "ATAC",
-                 region = geneRegions,
-                 features = geneName, 
-                 expression.assay = "RNA",
-                 region.highlight = ranges.show, 
-                 split.by = "Corrected_Seurat")
-    
-    if(!dir.exists("data/CoveragePlots")){
-      dir.create("data/CoveragePlots")
-    }
-    
-    if(!dir.exists(paste0("data/CoveragePlots/",geneName))){
-      dir.create(paste0("data/CoveragePlots/",geneName))
-    }
-    
-    jpeg(filename = paste0("data/CoveragePlots/",geneName,"/",geneName,".jpeg"),quality = 100, height = 800, width = 1000)
-    
-    print(c)
-    
-    dev.off()
-    
-  }else{
-    
-    iterations <- (length(geneRegions)/6) + 1
-    
-    j <- 1
-    k <- 6
-    for (i in 1:iterations) {
       
-      if(k>length(geneRegions)) k <- length(geneRegions)
-      
-      ranges.show <- StringToGRanges(geneRegions[j:k])
-      
+      tryCatch({
       c <- CoveragePlot(seuratObject,assay = "ATAC",
-                        region = geneRegions[j:k],
-                        features = geneName, 
-                        expression.assay = "RNA",
-                        region.highlight = ranges.show, 
-                        split.by = "Corrected_Seurat")
-      
-      if(!dir.exists("data/CoveragePlots")){
-        dir.create("data/CoveragePlots")
-      }
-      
-      if(!dir.exists(paste0("data/CoveragePlots/",geneName))){
-        dir.create(paste0("data/CoveragePlots/",geneName))
-      }
-      
-      jpeg(filename = paste0("data/CoveragePlots/",geneName,"/",geneName,"_",j,"_",k,".jpeg"),quality = 100, height = 800, width = 1000)
-      
-      print(c)
-      
-      dev.off()
-      
-      j <- j+6
-      k <- k+6
+                   region = gene,
+                   features = gene,
+                   expression.assay = "RNA"
+                   #split.by = "Corrected_Seurat"
+                   )
       
       
-    }
+        ggsave(filename = paste0("data/CoveragePlots/",gene,"_gg.jpeg"), plot = c)
+        # jpeg(filename = paste0("data/CoveragePlots/",gene,".jpeg"),quality = 100)
+        # 
+        # print(c)
+        # 
+        # dev.off()
+      }, error = function(e) {
+        # Handle errors by printing the message and skipping the gene
+        message("Skipping ", gene, ": ", e$message)
+      })
+    
+  }
+  
+  # if(length(geneRegions) < 6){
+  #   
+  #   ranges.show <- StringToGRanges(geneRegions)
+  #   
+  #   c <- CoveragePlot(seuratObject,assay = "ATAC",
+  #                region = geneRegions,
+  #                features = geneName, 
+  #                expression.assay = "RNA",
+  #                region.highlight = ranges.show, 
+  #                split.by = "Corrected_Seurat")
+  #   
+  #   if(!dir.exists("data/CoveragePlots")){
+  #     dir.create("data/CoveragePlots")
+  #   }
+  #   
+  #   if(!dir.exists(paste0("data/CoveragePlots/",geneName))){
+  #     dir.create(paste0("data/CoveragePlots/",geneName))
+  #   }
+  #   
+  #   jpeg(filename = paste0("data/CoveragePlots/",geneName,"/",geneName,".jpeg"),quality = 100, height = 800, width = 1000)
+  #   
+  #   print(c)
+  #   
+  #   dev.off()
+  #   
+  # }else{
+  #   
+  #   iterations <- (length(geneRegions)/6) + 1
+  #   
+  #   j <- 1
+  #   k <- 6
+  #   for (i in 1:iterations) {
+  #     
+  #     if(k>length(geneRegions)) k <- length(geneRegions)
+  #     
+  #     ranges.show <- StringToGRanges(geneRegions[j:k])
+  #     
+  #     c <- CoveragePlot(seuratObject,assay = "ATAC",
+  #                       region = geneRegions[j:k],
+  #                       features = geneName, 
+  #                       expression.assay = "RNA",
+  #                       region.highlight = ranges.show, 
+  #                       split.by = "Corrected_Seurat")
+  #     
+  #     if(!dir.exists("data/CoveragePlots")){
+  #       dir.create("data/CoveragePlots")
+  #     }
+  #     
+  #     if(!dir.exists(paste0("data/CoveragePlots/",geneName))){
+  #       dir.create(paste0("data/CoveragePlots/",geneName))
+  #     }
+  #     
+  #     jpeg(filename = paste0("data/CoveragePlots/",geneName,"/",geneName,"_",j,"_",k,".jpeg"),quality = 100, height = 800, width = 1000)
+  #     
+  #     print(c)
+  #     
+  #     dev.off()
+  #     
+  #     j <- j+6
+  #     k <- k+6
+  #     
+  #     
+  #   }
+  #   
+  # }
+  
+  
+  
+}
+
+FindCommonDGEDA <- function(RNADGE, ATACDA){
+  
+  combinedResults <- merge(
+    x = RNADGE,
+    y = ATACDA,
+    by.x = "row.names", # Gene names in DGE
+    by.y = "gene",      # Gene names in DA
+    suffixes = c("_RNA", "_ATAC")
+  )
+  
+  
+  consistentResults <- combinedResults[
+    (combinedResults$logFC_RNA > 0 & combinedResults$logFC_ATAC > 0) |
+      (combinedResults$logFC_RNA < 0 & combinedResults$logFC_ATAC < 0),
+  ]
+  
+  
+  #Filter the rows based on adj p value significance of both RNA and ATAC data
+  consistentResults <- consistentResults[
+    consistentResults$adjpvalue_RNA < 0.05 &
+      consistentResults$adjpvalue_ATAC < 0.05,
+  ]
+  
+  
+  consistentResults <- consistentResults[order(-abs(consistentResults$logFC_RNA)), ]
+  
+  return(consistentResults)
+  
+}
+
+WriteClusterSignificantGenes <- function(seuratObject, ids){
+  
+  Idents(seuratObject) <- "Corrected_Seurat"
+  
+  for (id in ids) {
+    
+    
+    subSeurat <- subset(seuratObject, idents = id)
+    
+    RNADGE <- FindMarkers(
+      
+      object = subSeurat,
+      
+      ident.1 = "KnockOut",
+      
+      ident.2 = "WildType",
+      
+      group.by = "SampleType",
+      
+      logfc.threshold = 1,
+      
+      test.use = "wilcox",
+      
+      assay = "RNA"
+      
+    )
+    
+    sigRNADGE <- RNADGE[RNADGE$p_val_adj < 0.05,]
+    
+    write(paste0(rownames(sigRNADGE),"\n"), file = paste0("data/",id,"DGESIGGENES.txt"))
+    
     
   }
   
   
+  
+}
+
+
+WriteClusterMarkerGenes <- function(seuratObject, ids){
+  
+  Idents(seuratObject) <- "Corrected_Seurat"
+  
+  allMarkers <- FindAllMarkers(seuratObject, assay = "RNA", logfc.threshold = 1)
+    
+  sigMarkers <- allMarkers[allMarkers$p_val_adj < 0.05,]
+    
+  for (id in ids) {
+    
+    write(paste0(rownames(sigMarkers[sigMarkers$cluster==id,]),"\n"), file = paste0("data/",id,"MARKSIGGENES.txt"))
+    
+  }
+    
+    
+}
+
+
+DoEnrichRAnnotation <- function(seuratObject, ids){
+  
+  Idents(seuratObject) <- "Corrected_Seurat"
+  
+  seuratObject@meta.data$er_adj_pval_annotation <- NA
+  
+  seuratObject@meta.data$er_odds_ratio_annotation <- NA
+  
+  seuratObject@meta.data$er_combined_score_annotation <- NA
+  
+  for (id in ids) {
+    
+    genes <- read.table(paste0("data/",id,"MARKSIGGENES.txt"))
+    enrichmentResults <- enrichr(genes = genes$V1 , databases = "Tabula_Muris")
+    res <- enrichmentResults$Tabula_Muris
+    adjpvalTerm <- res$Term[res$Adjusted.P.value == min(res$Adjusted.P.value)]
+    if(length(adjpvalTerm)>1) adjpvalTerm <- adjpvalTerm[1]
+    oddsratioTerm <- res$Term[res$Odds.Ratio == max(res$Odds.Ratio)]
+    if(length(oddsratioTerm)>1) oddsratioTerm <- oddsratioTerm[1]
+    combinedscoreTerm <- res$Term[res$Combined.Score == max(res$Combined.Score)]
+    if(length(combinedscoreTerm)>1) combinedscoreTerm <- combinedscoreTerm[1]
+    seuratObject@meta.data[seuratObject@meta.data$Corrected_Seurat == id, "er_adj_pval_annotation"] <- adjpvalTerm
+    seuratObject@meta.data[seuratObject@meta.data$Corrected_Seurat == id, "er_odds_ratio_annotation"] <- oddsratioTerm
+    seuratObject@meta.data[seuratObject@meta.data$Corrected_Seurat == id, "er_combined_score_annotation"] <- combinedscoreTerm
+    
+    
+  }
+  
+  return(seuratObject)
   
 }
