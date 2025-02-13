@@ -208,23 +208,189 @@ DoStandardSingleCellAnalysis <- function(seuratObject){
   
 }
 
-IntegrateSeuratObject <- function(seuratObject){
+IntegrateSeuratObjectRNAv5 <- function(seurat){
+  
+  DefaultAssay(seurat) <- "RNA"
+  
+  seurat <- IntegrateLayers(seurat,
+                            
+                            method = CCAIntegration,
+                            
+                            orig.reduction = "pca.rna",
+                            
+                            assay = "RNA",
+                            
+                            new.reduction = "integrated.cca")
+  
+  
+  seurat <- RunUMAP(seurat, dims = 1:20, reduction.name = "umap.integrated_rna", reduction = "integrated.cca")
   
   
   
-  integratedSeuratObject <- IntegrateLayers(seuratObject,
-                                            
-                                            method = CCAIntegration,
-                                            
-                                            orig.reduction = "pca",
-                                            
-                                            assay = "RNA",
-                                            
-                                            new.reduction = "integrated.cca")
+  return(seurat)
   
   
   
-  return(integratedSeuratObject)
+}
+
+
+IntegrateSeuratObjectRNAv4 <- function(seurat){
+  
+  DefaultAssay(seurat) <- "RNA"
+  
+  seurat.list <- SplitObject(seurat,split.by = "orig.ident")
+  
+  for (i in 1:length(seurat.list)) {
+    
+    seurat.list[[i]] <- FindVariableFeatures(object = seurat.list[[i]], nfeatures = 10000)
+    seurat.list[[i]] <- NormalizeData(object = seurat.list[[i]])
+    seurat.list[[i]] <- ScaleData(object = seurat.list[[i]])
+    
+  }
+  
+  features <- SelectIntegrationFeatures(object.list = seurat.list)
+  
+  anchors <- FindIntegrationAnchors(object.list = seurat.list,
+                                    anchor.features = features)
+  
+  seurat.integrated <- IntegrateData(anchorset = anchors, new.assay.name = "Integrated_RNA")
+  
+  seurat.integrated <- ScaleData(object = seurat.integrated)
+  
+  seurat.integrated <- RunPCA(object = seurat.integrated)
+  
+  seurat.integrated <- RunUMAP(seurat.integrated, dims = 1:30, reduction.name = "umap.integrated_rna")
+  
+  return(seurat.integrated)
+  
+  
+}
+
+IntegrateSeuratObjectATACSeurat <- function(seurat){
+  
+  browser()
+  
+  DefaultAssay(seurat) <- "ATAC"
+  # 
+  # seurat <- FindTopFeatures(seurat, min.cutoff = 10)
+  # 
+  # seurat <- RunTFIDF(seurat)
+  # 
+  # seurat <- RunSVD(seurat)
+  # 
+  # seurat <- RunUMAP(seurat, reduction = 'lsi', dims = 1:30, reduction.name = 'umap.atac')
+  
+  seurat.list <- SplitObject(seurat,split.by = "orig.ident")
+  
+  for (i in 1:length(seurat.list)) {
+    
+    DefaultAssay(seurat.list[[i]]) <- "ATAC"
+    seurat.list[[i]] <- FindTopFeatures(seurat.list[[i]], min.cutoff = 10)
+    seurat.list[[i]] <- RunTFIDF(seurat.list[[i]])
+  }
+  
+  
+  features <- SelectIntegrationFeatures(seurat.list, nfeatures = 2000)
+  
+  anchors <- FindIntegrationAnchors(
+    object.list = seurat.list,
+    anchor.features = features,
+    assay = c('ATAC','ATAC','ATAC','ATAC')
+  )
+  
+  seurat.integrated <- IntegrateData(anchorset = anchors, new.assay.name = "Integrated_ATAC")
+  
+  # seurat <- RunUMAP(seurat,dims=2:30,reduction.name ='umap.integrated_atac', reduction = 'harmony')
+  # 
+  # 
+  # 
+  # 
+  # # 
+  # # # peaks.use <- Reduce(intersect, list(VariableFeatures(individualATACObjects[[1]]),
+  # # #                                     VariableFeatures(individualATACObjects[[2]]),
+  # # #                                     VariableFeatures(individualATACObjects[[3]]),
+  # # #                                     VariableFeatures(individualATACObjects[[4]])))
+  # # 
+  # 
+  # # 
+  # # browser()
+  # # 
+  # 
+  # # 
+  # # any(is.na(rownames(GetAssayData(individualATACObjects[[4]], assay = "ATAC", slot = "counts"))))
+  # # 
+  # # # integrate LSI embeddings
+  # # integrated <- IntegrateEmbeddings(
+  # #   anchorset = integration.anchors,
+  # #   reductions = seurat[["lsi"]],
+  # #   new.reduction.name = "integrated_lsi",
+  # #   dims.to.integrate = 1:30
+  # # )
+  # # 
+  # # # create a new UMAP using the integrated embeddings
+  # # integrated <- RunUMAP(integrated, reduction = "integrated_lsi", dims = 1:30)
+  
+  
+  
+  return(seurat.integrated)
+  
+  
+  
+}
+
+IntegrateSeuratObjectATACHarmony <- function(seurat){
+  
+  DefaultAssay(seurat) <- "ATAC"
+  
+  seurat <- RunHarmony(object=seurat,group.by.vars='orig.ident',reduction.use='lsi',assay.use='ATAC', project.dim=F)
+  seurat <- RunUMAP(seurat,dims=1:30,reduction.name ='umap.integrated_atac', reduction = 'harmony')
+  
+  
+
+  # for (i in 1:length(individualATACObjects)) {
+  # 
+  #   DefaultAssay(individualATACObjects[[i]]) <- "ATAC"
+  #   individualATACObjects[[i]] <- FindTopFeatures(individualATACObjects[[i]], min.cutoff = 50)
+  #   individualATACObjects[[i]] <- RunTFIDF(individualATACObjects[[i]])
+  # 
+  # }
+  # 
+  # # peaks.use <- Reduce(intersect, list(VariableFeatures(individualATACObjects[[1]]),
+  # #                                     VariableFeatures(individualATACObjects[[2]]),
+  # #                                     VariableFeatures(individualATACObjects[[3]]),
+  # #                                     VariableFeatures(individualATACObjects[[4]])))
+  # 
+  # peaks.use <- Reduce(intersect, list(VariableFeatures(individualATACObjects[[1]]),
+  #                                     VariableFeatures(individualATACObjects[[2]]),
+  #                                     VariableFeatures(individualATACObjects[[3]]),
+  #                                     VariableFeatures(individualATACObjects[[4]])))
+  # peaks.use <- sample(peaks.use, 20000)
+  # 
+  # browser()
+  # 
+  # integration.anchors <- FindIntegrationAnchors(
+  #   object.list = individualATACObjects,
+  #   anchor.features = peaks.use,
+  #   assay = c('ATAC','ATAC','ATAC','ATAC'),
+  #   scale = TRUE
+  # )
+  # 
+  # any(is.na(rownames(GetAssayData(individualATACObjects[[4]], assay = "ATAC", slot = "counts"))))
+  # 
+  # # integrate LSI embeddings
+  # integrated <- IntegrateEmbeddings(
+  #   anchorset = integration.anchors,
+  #   reductions = seurat[["lsi"]],
+  #   new.reduction.name = "integrated_lsi",
+  #   dims.to.integrate = 1:30
+  # )
+  # 
+  # # create a new UMAP using the integrated embeddings
+  # integrated <- RunUMAP(integrated, reduction = "integrated_lsi", dims = 1:30)
+  
+  
+  
+  return(seurat)
   
   
   
@@ -312,8 +478,7 @@ AddAnnotations <- function(seurat,annotations){
   
 }
 
-DoSignac <- function(seurat){
-  
+CalculateATACQCMetrics <- function(seurat){
   
   DefaultAssay(seurat) <- "ATAC"
   
@@ -331,10 +496,18 @@ DoSignac <- function(seurat){
     
   )
   
+  return(seurat)
+  
+}
+
+DoQCForATACAssay <- function(seurat){
+  
+  DefaultAssay(seurat) <- "ATAC"
+  
+  Idents(seurat) <- "orig.ident"
   
   
-  
-  VlnPlot(
+  qcPlot <- VlnPlot(
     
     seurat,
     
@@ -344,82 +517,138 @@ DoSignac <- function(seurat){
     
     pt.size = 0.1,
     
-    ncol = 4
+    ncol = 4,
+    
+    group.by = NULL
     
   )
   
   
+  ggsave(filename = paste0("data/",seurat@project.name,"/outs/ATACQCBeforeFiltering.jpeg"), plot = qcPlot)
   
+  plot(qcPlot)
   
+  cat("Select the lower threshold of nCount_ATAC: \n")
+  
+  lowerThresholdATAC <- scan(nmax = 1)
+  
+  print(paste0("Selected lower threshold of nCount_ATAC: ",as.numeric(lowerThresholdATAC)))
+  
+  cat("Select the upper threshold of nCount_ATAC: \n")
+  
+  upperThresholdATAC <- scan(nmax = 1)
+  
+  print(paste0("Selected upper threshold of nCount_ATAC: ",as.numeric(upperThresholdATAC)))
+  
+  cat("Select the lower threshold of TSSErichment: \n")
+  
+  lowerThresholdTSSErichment <- scan(nmax = 1)
+  
+  print(paste0("Selected lower threshold of TSSErichment: ",as.numeric(lowerThresholdTSSErichment)))
+  
+  cat("Select the upper threshold of TSSErichment: \n")
+  
+  upperThresholdTSSErichment <- scan(nmax = 1)
+  
+  print(paste0("Selected upper threshold of TSSErichment: ",as.numeric(upperThresholdTSSErichment)))
+  
+  cat("Select the lower threshold of NucleosomeSignal: \n")
+  
+  lowerThresholdNucleosomeSignal <- scan(nmax = 1)
+  
+  print(paste0("Selected lower threshold of NucleosomeSignal: ",as.numeric(lowerThresholdNucleosomeSignal)))
+  
+  cat("Select the upper threshold of NucleosomeSignal: \n")
+  
+  upperThresholdNucleosomeSignal <- scan(nmax = 1)
+  
+  print(paste0("Selected upper threshold of NucleosomeSignal: ",as.numeric(upperThresholdNucleosomeSignal)))
+  
+  cat("Select the lower threshold of BlacklistFraction: \n")
+  
+  lowerThresholdBlacklistFraction <- scan(nmax = 1)
+  
+  print(paste0("Selected lower threshold of BlacklistFraction: ",as.numeric(lowerThresholdBlacklistFraction)))
+  
+  cat("Select the upper threshold of BlacklistFraction: \n")
+  
+  upperThresholdBlacklistFraction <- scan(nmax = 1)
+  
+  print(paste0("Selected upper threshold of BlacklistFraction: ",as.numeric(upperThresholdBlacklistFraction)))
   
   
   seurat <- subset(
     
     x = seurat,
     
-    subset = blacklist_fraction < 0.04 &
+    subset = blacklist_fraction < upperThresholdBlacklistFraction &
       
-      TSS.enrichment < 20 &
+      blacklist_fraction > lowerThresholdBlacklistFraction &
+      
+      TSS.enrichment < upperThresholdTSSErichment &
+      
+      TSS.enrichment > lowerThresholdTSSErichment &
       
       CellType == "Singlet" &
       
-      nCount_ATAC > 500 &
+      nCount_ATAC < upperThresholdATAC &
       
-      nucleosome_signal < 2
+      nCount_ATAC > lowerThresholdATAC &
+      
+      nucleosome_signal < upperThresholdNucleosomeSignal &
+      
+      nucleosome_signal > lowerThresholdNucleosomeSignal
     
   )
   
   
   
+  qcPlot <- VlnPlot(
+    
+    seurat,
+    
+    features = c("nCount_ATAC", "TSS.enrichment",
+                 
+                 "nucleosome_signal", "blacklist_fraction"),
+    
+    pt.size = 0.1,
+    
+    ncol = 4,
+    
+    group.by = NULL
+    
+  )
   
   
+  ggsave(filename = paste0("data/",seurat@project.name,"/outs/ATACQCAfterFiltering.jpeg"), plot = qcPlot)
   
   
+  return(seurat)
   
-  
-  
+}
+
+Preprocess <- function(seurat){
   
   DefaultAssay(seurat) <- "RNA"
   
   
   
-  seurat <- FindVariableFeatures(seurat, nfeatures = 2000)
+  seurat <- FindVariableFeatures(seurat, nfeatures = 10000)
   
   seurat <- NormalizeData(seurat)
   
   seurat <- ScaleData(seurat)
   
-  seurat <- RunPCA(seurat, npcs = 20, reduction.name = "pca.2")
+  seurat <- RunPCA(seurat, npcs = 20, reduction.name = "pca.rna")
   
-  seurat <- IntegrateLayers(seurat,
-                            
-                            method = CCAIntegration,
-                            
-                            orig.reduction = "pca.2",
-                            
-                            assay = "RNA",
-                            
-                            new.reduction = "integrated.cca")
+  seurat <- RunUMAP(seurat, dims = 1:20, reduction.name = "umap.rna", reduction = "pca.rna")
   
-  seurat <- RunUMAP(seurat, dims = 1:20, reduction.name = "umap.rna", reduction = "integrated.cca")
+  #seurat <- RunUMAP(seurat, dims = 1:20, reduction.name = "umap.rna", reduction = "integrated.cca")
   
-  seurat <- FindNeighbors(seurat, dims = 1:20, reduction = "integrated.cca")
-  
-  seurat <- FindClusters(seurat, resolution = 0.2, algorithm = 3,cluster.name = "cca_clusters")
+  #seurat <- FindNeighbors(seurat, dims = 1:20, reduction = "integrated.cca")
   
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  DefaultAssay(seurat) <- 'ATAC'
-  
-  
+  DefaultAssay(seurat) <- "ATAC"
   
   seurat <- FindTopFeatures(seurat, min.cutoff = 10)
   
@@ -427,15 +656,11 @@ DoSignac <- function(seurat){
   
   seurat <- RunSVD(seurat)
   
-  seurat <- RunUMAP(seurat, reduction = 'lsi', dims = 2:30, reduction.name = 'umap.atac')
-  
-  
+  seurat <- RunUMAP(seurat, reduction = 'lsi', dims = 1:30, reduction.name = 'umap.atac')
   
   
   
   return(seurat)
-  
-  
   
   
   
@@ -458,6 +683,8 @@ FindDoublets <- function(seurat){
   qcPlot <- VlnPlot(seurat,features = c("nCount_RNA","nFeature_RNA","mitoPercent"),ncol = 3)
   
   plot(qcPlot)
+  
+  ggsave(filename = paste0("data/",seurat@project.name,"/outs/QCMetricsBeforeFiltering.jpeg"), plot = qcPlot)
   
   cat("Select the lower threshold of nCount_RNA: \n")
   
@@ -501,6 +728,11 @@ FindDoublets <- function(seurat){
   
   
   
+  qcPlot <- VlnPlot(seurat,features = c("nCount_RNA","nFeature_RNA","mitoPercent"),ncol = 3)
+  
+  
+  
+  ggsave(filename = paste0("data/",seurat@project.name,"/outs/QCMetricsAfterFiltering.jpeg"), plot = qcPlot)
   
   
   #Remove ambient RNA
@@ -526,6 +758,8 @@ FindDoublets <- function(seurat){
   elbow <- ElbowPlot(seurat)
   
   plot(elbow)
+  
+  ggsave(filename = paste0("data/",seurat@project.name,"/outs/Elbow.jpeg"), plot = elbow)
   
   cat("Select the number of dimensions: \n")
   
@@ -635,6 +869,8 @@ VisualizeClustree <- function(lowerResolutionThreshold, higherResolutionThreshol
   
   
   DefaultAssay(seuratObject) <- "RNA"
+  
+  seuratObject <- FindNeighbors(seuratObject, reduction="integrated.cca")
   
   for (i in seq(lowerResolutionThreshold,higherResolutionThreshold,thresholdIncrement)) {
     
@@ -905,12 +1141,13 @@ WriteClusterSignificantGenes <- function(seuratObject, ids){
   
 }
 
-
 WriteClusterMarkerGenes <- function(seuratObject, ids){
   
   Idents(seuratObject) <- "Corrected_Seurat"
   
   allMarkers <- FindAllMarkers(seuratObject, assay = "RNA", logfc.threshold = 1)
+  
+  write.csv(allMarkers, file = 'data/AllMarkers.csv', row.names = TRUE)
     
   sigMarkers <- allMarkers[allMarkers$p_val_adj < 0.05,]
     
@@ -922,7 +1159,6 @@ WriteClusterMarkerGenes <- function(seuratObject, ids){
     
     
 }
-
 
 DoEnrichRAnnotation <- function(seuratObject, ids){
   
@@ -954,4 +1190,11 @@ DoEnrichRAnnotation <- function(seuratObject, ids){
   
   return(seuratObject)
   
+}
+
+# Create a new Seurat object with only one assay
+SubsetSeurat <- function(seurat, assayName) {
+  
+  newObj <- CreateSeuratObject(counts = seurat[[assayName]], assay = assayName)
+  return(newObj)
 }

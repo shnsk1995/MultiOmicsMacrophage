@@ -49,7 +49,7 @@ grSKM2 <- makeGRangesFromDataFrame(peaksSKM2)
 
 
 #Create a unified set of peaks to quantify in each dataset
-combined.peaks <- reduce(x = c(grSFL1,grSFL2,grSKM1,grSKM2))
+combined.peaks <- GenomicRanges::reduce(x = c(grSFL1,grSFL2,grSKM1,grSKM2))
 
 
 
@@ -180,7 +180,7 @@ seuratSFL1[['ATAC']] <- CreateChromatinAssay(
   genome = "mm10",
   fragments = fragsSFL1
 )
-
+SaveSeuratRds(seuratSFL1,"data/SFL1/outs/seuratSFL1.RDS")
 
 
 
@@ -260,16 +260,16 @@ seuratSKM2 <- AddAnnotations(seuratSKM2,annotations)
 #Call FindDoublets function to perform quality control and detect doublets
 #Ensure to select the correct classifications column when assigning to cell type
 seuratSFL1 <- FindDoublets(seuratSFL1)
-seuratSFL1$CellType <- seuratSFL1$DF.classifications_0.25_0.28_557
+seuratSFL1$CellType <- seuratSFL1$DF.classifications_0.25_0.3_508
 
 seuratSFL2 <- FindDoublets(seuratSFL2)
-seuratSFL2$CellType <- seuratSFL2$DF.classifications_0.25_0.1_415
+seuratSFL2$CellType <- seuratSFL2$DF.classifications_0.25_0.27_340
 
 seuratSKM1 <- FindDoublets(seuratSKM1)
-seuratSKM1$CellType <- seuratSKM1$DF.classifications_0.25_0.27_418
+seuratSKM1$CellType <- seuratSKM1$DF.classifications_0.25_0.07_365
 
 seuratSKM2 <- FindDoublets(seuratSKM2)
-seuratSKM2$CellType <- seuratSKM2$DF.classifications_0.25_0.21_473
+seuratSKM2$CellType <- seuratSKM2$DF.classifications_0.25_0.19_380
 
 #Save all Seurat objects for backup
 SaveSeuratRds(seuratSFL1,"data/SFL1/outs/seuratDoubletsSFL1.RDS")
@@ -283,8 +283,35 @@ SFL2Plot <- DimPlot(seuratSFL2,reduction = "umap",group.by = "CellType") + ggtit
 SKM1Plot <- DimPlot(seuratSKM1,reduction = "umap",group.by = "CellType") + ggtitle("SKM1")
 SKM2Plot <- DimPlot(seuratSKM2,reduction = "umap",group.by = "CellType") + ggtitle("SKM2")
 
-SFL1Plot+SFL2Plot+SKM1Plot+SKM2Plot
+ggsave(filename = "data/Doublets.jpeg", plot = SFL1Plot+SFL2Plot+SKM1Plot+SKM2Plot)
 
+
+####################################################################QC for ATAC assay#########################################################################
+
+#Calculate ATAC QC metrics
+seuratSFL1 <- CalculateATACQCMetrics(seuratSFL1)
+seuratSFL2 <- CalculateATACQCMetrics(seuratSFL2)
+seuratSKM1 <- CalculateATACQCMetrics(seuratSKM1)
+seuratSKM2 <- CalculateATACQCMetrics(seuratSKM2)
+
+#Save the seurat object
+SaveSeuratRds(seuratSFL1,"data/SFL1/outs/seuratATACQCSFL1.RDS")
+SaveSeuratRds(seuratSFL2,"data/SFL2/outs/seuratATACQCSFL2.RDS")
+SaveSeuratRds(seuratSKM1,"data/SKM1/outs/seuratATACQCSKM1.RDS")
+SaveSeuratRds(seuratSKM2,"data/SKM2/outs/seuratATACQCSKM2.RDS")
+
+#Read back data
+seuratSFL1 <- readRDS("data/SFL1/outs/seuratATACQCSFL1.RDS")
+seuratSFL2 <- readRDS("data/SFL2/outs/seuratATACQCSFL2.RDS")
+seuratSKM1 <- readRDS("data/SKM1/outs/seuratATACQCSKM1.RDS")
+seuratSKM2 <- readRDS("data/SKM2/outs/seuratATACQCSKM2.RDS")
+
+
+#Filter cells based on ATAC assay QC metrics
+seuratSFL1 <- DoQCForATACAssay(seuratSFL1)
+seuratSFL2 <- DoQCForATACAssay(seuratSFL2)
+seuratSKM1 <- DoQCForATACAssay(seuratSKM1)
+seuratSKM2 <- DoQCForATACAssay(seuratSKM2)
 
 
 ####################################################################Merge Seurat Objects#########################################################################
@@ -296,44 +323,101 @@ seuratSFL2 <- RenameCells(seuratSFL2, add.cell.id = "SFL2")
 seuratSKM1 <- RenameCells(seuratSKM1, add.cell.id = "SKM1")
 seuratSKM2 <- RenameCells(seuratSKM2, add.cell.id = "SKM2")
 
+#Save the seurat object
+SaveSeuratRds(seuratSFL1,"data/SFL1/outs/seuratRenamedSFL1.RDS")
+SaveSeuratRds(seuratSFL2,"data/SFL2/outs/seuratRenamedSFL2.RDS")
+SaveSeuratRds(seuratSKM1,"data/SKM1/outs/seuratRenamedSKM1.RDS")
+SaveSeuratRds(seuratSKM2,"data/SKM2/outs/seuratRenamedSKM2.RDS")
+
+#Read back data
+seuratSFL1 <- readRDS("data/SFL1/outs/seuratRenamedSFL1.RDS")
+seuratSFL2 <- readRDS("data/SFL2/outs/seuratRenamedSFL2.RDS")
+seuratSKM1 <- readRDS("data/SKM1/outs/seuratRenamedSKM1.RDS")
+seuratSKM2 <- readRDS("data/SKM2/outs/seuratRenamedSKM2.RDS")
+
 #Merge and save the Seurat Object
 seurat <- merge(seuratSFL1,y=c(seuratSFL2,seuratSKM1,seuratSKM2), project = "MultiOmicsMacrophage")
-SaveSeuratRds(seurat,"data/mergedseurat.RDS")
-
-
-####################################################################Signac#########################################################################
-
-
-
-#Using Signac package do quality control of ATAC Assays and then preprocess both RNA (Integration) and ATAC Assays to compute dimension reduction
-#Refer DoSignac function in Functions.R for more info
-seurat <- DoSignac(seurat = seurat)
-
-#Assign sample type to the samples
-seurat@meta.data <- seurat@meta.data %>%
-  dplyr::mutate(SampleType = ifelse(orig.ident %in% c("SFL1","SFL2"),"WildType","KnockOut"))
-
 
 #Join layers in RNA assay for further processing
 DefaultAssay(seurat) <- "RNA"
 seurat <- JoinLayers(seurat)
 
+SaveSeuratRds(seurat,"data/mergedseurat.RDS")
+#seurat <- readRDS("data/mergedseurat.RDS")
 
-#Save Seurat Object
-SaveSeuratRds(seurat,"data/MergedSignacSeurat.RDS")
 
+####################################################################Pre process RNA and ATAC assays#########################################################################
+
+
+#preprocess both RNA (Integration) and ATAC Assays to compute dimension reduction
+#Refer Preprocess function in Functions.R for more info
+seurat <- Preprocess(seurat = seurat)
+
+#Assign sample type to the samples
+seurat@meta.data <- seurat@meta.data %>%
+  dplyr::mutate(SampleType = ifelse(orig.ident %in% c("SFL1","SFL2"),"WildType","KnockOut"))
+
+#Save the seurat object
+SaveSeuratRds(seurat,"data/Preprocessedseurat.RDS")
 
 ####################################################################Visualize Umaps#########################################################################
 
 #RNA UMAP
 p1 <- DimPlot(seurat, reduction = 'umap.rna', label = TRUE, group.by = "orig.ident") + ggtitle("RNA UMAP")
 p2 <- DimPlot(seurat, reduction = 'umap.rna', label = TRUE, split.by = "orig.ident") + ggtitle("RNA UMAP")
-p1+p2
+
+ggsave(filename = "data/RNAUMAP.jpeg", plot = p1+p2)
+
 
 #ATAC UMAP
 p1 <- DimPlot(seurat, reduction = 'umap.atac', label = TRUE, group.by = "orig.ident") + ggtitle("ATAC UMAP")
 p2 <- DimPlot(seurat, reduction = 'umap.atac', label = TRUE, split.by = "orig.ident") + ggtitle("ATAC UMAP")
+
+ggsave(filename = "data/ATACUMAP.jpeg", plot = p1+p2)
+
+
+####################################################################Integrate RNA datasets if required#########################################################################
+
+#Integrate datasets if required #Version 5 #No inegrated assay
+seurat <- IntegrateSeuratObjectRNAv5(seurat) #Only integrates RNA assay
+
+#Integrate datasets if required #Version 4 #Inegrated assay
+#seurat <- IntegrateSeuratObjectRNAv4(seurat) #Only integrates RNA assay
+
+
+#Save Seurat Object
+SaveSeuratRds(seurat,"data/RNAIntegratedMergedSeurat.RDS")
+seurat <- readRDS(file = "data/RNAIntegratedMergedSeurat.RDS")
+####################################################################Visualize Umaps#########################################################################
+
+#RNA UMAP
+p1 <- DimPlot(seurat, reduction = 'umap.integrated_rna', label = TRUE, group.by = "orig.ident") + ggtitle("RNA UMAP")
+p2 <- DimPlot(seurat, reduction = 'umap.integrated_rna', label = TRUE, split.by = "orig.ident") + ggtitle("RNA UMAP")
 p1+p2
+
+ggsave(filename = "data/IntegratedRNAUMAP.jpeg", plot = p1+p2)
+
+
+
+####################################################################Integrate ATAC datasets if required#########################################################################
+
+#Integrate datasets if required
+seurat <- IntegrateSeuratObjectATACHarmony(seurat) #Only integrates ATAC assay
+#seurat <- IntegrateSeuratObjectATACSeurat(seurat) #Only integrates ATAC assay
+
+#Save Seurat Object
+SaveSeuratRds(seurat,"data/ATACIntegratedMergedSeurat.RDS")
+
+
+####################################################################Visualize Umaps#########################################################################
+
+#ATAC UMAP
+p1 <- DimPlot(seurat, reduction = 'umap.integrated_atac', label = TRUE, group.by = "orig.ident") + ggtitle("ATAC UMAP")
+p2 <- DimPlot(seurat, reduction = 'umap.integrated_atac', label = TRUE, split.by = "orig.ident") + ggtitle("ATAC UMAP")
+p1+p2
+
+ggsave(filename = "data/IntegratedATACUMAP.jpeg", plot = p1+p2)
+
 
 
 ####################################################################Link peaks to genes#########################################################################
@@ -375,7 +459,7 @@ counts <- seurat@assays$RNA$counts
 
 #Perform the significance test
 new_clusters = testClusters(counts, 
-                            cluster_ids = as.character(seurat$cca_clusters_0_1_0.2), # Choose the correct cluster column as determined in Clustree step
+                            cluster_ids = as.character(seurat$cca_clusters_0_1_0.4), # Choose the correct cluster column as determined in Clustree step
                             alpha = 0.05, #FWER control, can be relaxed if needed
                             num_features = 2500,#default number
                             num_PCs = 30, #default number
@@ -383,21 +467,21 @@ new_clusters = testClusters(counts,
                             cores = 1)
 
 #Compare the new clusters with the existing clusters
-table(new_clusters[[1]],seurat$cca_clusters_0_1_0.2)
+table(new_clusters[[1]],seurat$cca_clusters_0_1_0.4)
 
 #Add old clusters as Seurat and new clusters as Corrected Seurat to the Seurat Object
-seurat$Seurat <- seurat$cca_clusters_0_1_0.2
+seurat$Seurat <- seurat$cca_clusters_0_1_0.4
 seurat$Corrected_Seurat <- new_clusters[[1]]
 
 
 #Visualize the old and new clusters
-ggarrange(DimPlot(seurat,group.by='Seurat', label=T)+NoLegend(),
-  DimPlot(seurat,group.by='Corrected_Seurat', label=T)+NoLegend(),
+ggarrange(DimPlot(seurat,group.by='Seurat', label=T, reduction = 'umap.integrated_rna')+NoLegend(),
+  DimPlot(seurat,group.by='Corrected_Seurat', label=T, reduction = 'umap.integrated_rna')+NoLegend(),
   nrow=1)
 
 
-d1 = DimPlot(seurat,group.by='Seurat', label=T) #+
-d2 = DimPlot(seurat,group.by='Corrected_Seurat', label=T) #+
+d1 = DimPlot(seurat,group.by='Seurat', label=T, reduction = 'umap.integrated_rna') #+
+d2 = DimPlot(seurat,group.by='Corrected_Seurat', label=T, reduction = 'umap.integrated_rna') #+
 d1 + d2
 
 
@@ -406,8 +490,8 @@ ggsave("compare_clusters_Seurat.pdf", width=10, height=8)
 
 
 #Visualize UMAPs by imposing the clusters
-rna <- DimPlot(seurat,group.by='Corrected_Seurat', label=T, split.by = "orig.ident", reduction = "umap.rna")
-atac <- DimPlot(seurat,group.by='Corrected_Seurat', label=T, split.by = "orig.ident", reduction = "umap.atac")
+rna <- DimPlot(seurat,group.by='Corrected_Seurat', label=T, split.by = "orig.ident", reduction = "umap.integrated_rna")
+atac <- DimPlot(seurat,group.by='Corrected_Seurat', label=T, split.by = "orig.ident", reduction = "umap.integrated_atac")
 rna + atac
 
 
@@ -582,12 +666,12 @@ write(paste0(unique(regionGeneMap$gene_name),"\n"), file = paste0("data/GenesOfI
 
 
 #Generate Coverage plots for the significant genes as these are showing changes in both RNA and ATAC data in the same direction
-GenerateCoveragePlots(EnrichRAnnotatedJoinedSeurat, unique(regionGeneMap$gene_name))
+GenerateCoveragePlots(seurat, unique(regionGeneMap$gene_name))
 
 
 #Do pathway enrichment using the significant genes
 #No code for doing this. Do manually using Enrich R website and download the results table to the correct location
-Pathwayresults <- fread(file = "data/WikiPathways_2024_Mouse_table2.txt")
+Pathwayresults <- fread(file = "data/WikiPathways_2024_Mouse.txt")
 
 #Filter for significant pathways
 Pathwayresults <- Pathwayresults[Pathwayresults$`P-value` < 0.01,]
@@ -608,5 +692,11 @@ ggplot(Pathwayresults, aes(x=`Overlap`, y=reorder(`Term`, -log10(`Adjusted P-val
   labs(x="Gene Overlap", y="Pathway", title="Pathway Enrichment Dot Plot") +
   theme_minimal()
 
+####################################################################Save the data###################################################################
 
+
+write.csv(RNADGE, file = "data/RNADGE.csv", row.names = TRUE)
+write.csv(ATACDA, file = "data/ATACDA.csv", row.names = TRUE)
+WriteXLS::WriteXLS(Pathwayresults, ExcelFileName = "data/PathwayResults.xlsx")
+SaveSeuratRds(seurat, file = "data/FinalSeurat.RDS")
 ####################################################################THE END#########################################################################
