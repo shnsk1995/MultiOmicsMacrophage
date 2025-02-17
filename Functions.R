@@ -1215,13 +1215,9 @@ DoCellCycleScoring <- function(seurat){
   
   
   # Manually curated mouse orthologs of Seurat's cell cycle genes
-  s.genes.mouse <- c("UHRF1", "RRM2", "PCNA", "MCM2", "MCM3", "MCM4", "MCM5", "MCM6", 
-                     "MCM7", "MCM8", "TYMS", "CDC45", "GMNN", "ATAD2", "NASP", "HELLS", 
-                     "UNG", "USP1", "EXO1", "BUB1", "E2F8")
+  s.genes.mouse <- cc.genes$s.genes
   
-  g2m.genes.mouse <- c("TACC3", "TOP2A", "AURKB", "CCNB2", "BUB1B", "KIF20B", "KIF23", 
-                       "PLK1", "CENPF", "CDC20", "CDCA3", "CCNA2", "GTSE1", "CDK1", 
-                       "NUF2", "TTK", "PBK", "HJURP", "BIRC5", "DLGAP5", "NCAPH")
+  g2m.genes.mouse <- cc.genes$g2m.genes
   
   # Convert the cell cycle genes
   s.genes.mouse <- CapitalizeFirst(s.genes.mouse)
@@ -1241,7 +1237,7 @@ DoCellCycleScoring <- function(seurat){
   G2MMarkers <- FindMarkers(seurat, ident.1 = "G2M", only.pos = TRUE)
   
   
-  Markers <- c(head(rownames(G1Markers),3),head(rownames(G2MMarkers),1),head(rownames(SMarkers),2))
+  Markers <- c(head(rownames(G1Markers),3),head(rownames(G2MMarkers),2),head(rownames(SMarkers),1))
   
   
   ridgePlot <- RidgePlot(seurat, features = Markers)
