@@ -985,12 +985,14 @@ GenerateCoveragePlots <- function(seuratObject, genesOfInterest){
       c <- CoveragePlot(seuratObject,assay = "ATAC",
                    region = gene,
                    features = gene,
-                   expression.assay = "RNA"
-                   #split.by = "Corrected_Seurat"
+                   expression.assay = "RNA",
+                   extend.upstream = 5000,
+                   extend.downstream = 5000,
+                   split.by = "orig.ident"
                    )
       
       
-        ggsave(filename = paste0("data/CoveragePlots/",gene,"_gg.jpeg"), plot = c)
+        ggsave(filename = paste0("data/CoveragePlots/",gene,".jpeg"), plot = c, height = 15, width = 25, units = "cm")
         # jpeg(filename = paste0("data/CoveragePlots/",gene,".jpeg"),quality = 100)
         # 
         # print(c)
@@ -1197,4 +1199,56 @@ SubsetSeurat <- function(seurat, assayName) {
   
   newObj <- CreateSeuratObject(counts = seurat[[assayName]], assay = assayName)
   return(newObj)
+}
+
+CapitalizeFirst <- function(genes) {
+  sapply(genes, function(x) {
+    paste0(toupper(substr(x, 1, 1)), tolower(substr(x, 2, nchar(x))))
+  })
+}
+
+
+#Function to perform cell cycle scoring and plot marker genes in each cycle
+DoCellCycleScoring <- function(seurat){
+  
+  DefaultAssay(seurat) <- "RNA"
+  
+  
+  # Manually curated mouse orthologs of Seurat's cell cycle genes
+  s.genes.mouse <- c("UHRF1", "RRM2", "PCNA", "MCM2", "MCM3", "MCM4", "MCM5", "MCM6", 
+                     "MCM7", "MCM8", "TYMS", "CDC45", "GMNN", "ATAD2", "NASP", "HELLS", 
+                     "UNG", "USP1", "EXO1", "BUB1", "E2F8")
+  
+  g2m.genes.mouse <- c("TACC3", "TOP2A", "AURKB", "CCNB2", "BUB1B", "KIF20B", "KIF23", 
+                       "PLK1", "CENPF", "CDC20", "CDCA3", "CCNA2", "GTSE1", "CDK1", 
+                       "NUF2", "TTK", "PBK", "HJURP", "BIRC5", "DLGAP5", "NCAPH")
+  
+  # Convert the cell cycle genes
+  s.genes.mouse <- CapitalizeFirst(s.genes.mouse)
+  g2m.genes.mouse <- CapitalizeFirst(g2m.genes.mouse)
+  
+  
+  seurat <- CellCycleScoring(seurat, 
+                                 s.features = s.genes.mouse, 
+                                 g2m.features = g2m.genes.mouse, 
+                                 set.ident = TRUE)
+  
+  Idents(seurat) <- "Phase"
+  
+  
+  G1Markers <- FindMarkers(seurat, ident.1 = "G1", only.pos = TRUE)
+  SMarkers <- FindMarkers(seurat, ident.1 = "S", only.pos = TRUE)
+  G2MMarkers <- FindMarkers(seurat, ident.1 = "G2M", only.pos = TRUE)
+  
+  
+  Markers <- c(head(rownames(G1Markers),3),head(rownames(G2MMarkers),1),head(rownames(SMarkers),2))
+  
+  
+  ridgePlot <- RidgePlot(seurat, features = Markers)
+  
+  ggsave(filename = "data/TopCellPhaseMarkers.jpeg", plot = ridgePlot)
+  
+  
+  return(seurat)
+  
 }

@@ -286,6 +286,9 @@ SKM2Plot <- DimPlot(seuratSKM2,reduction = "umap",group.by = "CellType") + ggtit
 ggsave(filename = "data/Doublets.jpeg", plot = SFL1Plot+SFL2Plot+SKM1Plot+SKM2Plot)
 
 
+#Optionally show Mitochondrial percent in all the samples
+# Idents(seurat) <- "orig.ident"
+# VlnPlot(seurat, features = "mitoPercent")
 ####################################################################QC for ATAC assay#########################################################################
 
 #Calculate ATAC QC metrics
@@ -500,6 +503,24 @@ rna + atac
 #Call WriteClusterMarkerGenes function to find markers for each cluster and save them in a text file
 WriteClusterMarkerGenes(seurat, unique(seurat$Corrected_Seurat))
 
+
+
+#####################################################################Feature plots of top markers###############################################################
+
+
+#Plot feature plots for top upregulated markers
+Idents(seurat) <- "Corrected_Seurat"
+allMarkers <- read.csv(file = "data/AllMarkers.csv", row.names = 1)
+
+#For Cluster new1
+new1Upregulated <- allMarkers[allMarkers$cluster=="new1" & allMarkers$avg_log2FC > 0,]
+new1Upregulated <- new1Upregulated[order(new1Upregulated$p_val_adj),]
+FeaturePlot(seurat, features = new1Upregulated$gene[1:6], reduction = "umap.integrated_rna", label = TRUE, repel = TRUE)
+
+#For Cluster new2
+new2Upregulated <- allMarkers[allMarkers$cluster=="new2" & allMarkers$avg_log2FC > 0,]
+new2Upregulated <- new2Upregulated[order(new2Upregulated$p_val_adj),]
+FeaturePlot(seurat, features = new2Upregulated$gene[1:6], reduction = "umap.integrated_rna", label = TRUE, repel = TRUE)
 ####################################################################Annotate Cell Types#########################################################################
 
 #Call DoEnrichRAnnotation function to use the cluster markers and assign cell types to the clusters
@@ -620,7 +641,7 @@ for (region in unique(regionGeneMap$query_region)) {
 
 #Save the region gene map data
 write.csv(regionGeneMap, file = "data/RegionGeneMap.csv", row.names = TRUE)
-
+regionGeneMap <- read.csv(file = "data/RegionGeneMap.csv", row.names = 1)
 
 
 #Filter the rows if there are no differential expression or accessability metrics
@@ -665,8 +686,15 @@ regionGeneMap <- regionGeneMap[
 write(paste0(unique(regionGeneMap$gene_name),"\n"), file = paste0("data/GenesOfInterest.txt"))
 
 
-#Generate Coverage plots for the significant genes as these are showing changes in both RNA and ATAC data in the same direction
-GenerateCoveragePlots(seurat, unique(regionGeneMap$gene_name))
+#Find Genes of Interest with multiple significant peaks
+GeneFrequencyTable <- as.data.frame(table(regionGeneMap$gene_name))
+GeneFrequencyTable <- GeneFrequencyTable[order(GeneFrequencyTable$Freq, decreasing = TRUE),]
+colnames(GeneFrequencyTable) <- c("Gene","Freq")
+GeneFrequencyTable$Gene <- as.character(GeneFrequencyTable$Gene)
+
+
+#Generate Coverage plots for the top 10 significant genes with multiple significant peaks as these are showing changes in both RNA and ATAC data in the same direction
+GenerateCoveragePlots(seurat, head(GeneFrequencyTable$Gene, 10))
 
 
 #Do pathway enrichment using the significant genes
@@ -692,6 +720,51 @@ ggplot(Pathwayresults, aes(x=`Overlap`, y=reorder(`Term`, -log10(`Adjusted P-val
   labs(x="Gene Overlap", y="Pathway", title="Pathway Enrichment Dot Plot") +
   theme_minimal()
 
+####################################################################Venn Diagram#############################################################################
+
+DEG <- read.csv("data/RNADGE.csv",row.names = 1)$Gene
+DAPG <- unique(regionGeneMap <- read.csv(file = "data/RegionGeneMap.csv", row.names = 1)$gene_name)
+GenesOfInterest <- unique(read.table(file = "data/GenesOfInterest.txt")$V1)
+
+
+venn.plot <- venn.diagram(
+  x = list(
+    "DEGs" = DEG,
+    "DAPs" = DAPG,
+    "Genes of Interest" = GenesOfInterest
+  ),
+  category.names = c("DEGs", "DAPs", "Genes of Interest"),
+  filename = NULL,
+  fill = c("orange", "green", "red"),
+  alpha = 0.5,
+  cat.cex = 1.5
+)
+
+grid.draw(venn.plot)
+
+
+####################################################################DO Cell Cycle Scoring###################################################################
+
+#Call CellCycleScoring Function #Generates ridge plot for top three markers in each phase
+seurat <- DoCellCycleScoring(seurat)
+
+#Dim plot for cell cycle phase
+DimPlot(seurat, reduction = "umap.integrated_rna", split.by = "orig.ident")
+
+cellPhaseProportions <- as.data.frame(table(seurat@meta.data$orig.ident,seurat@meta.data$Phase))
+colnames(cellPhaseProportions) <- c("Samples","CellPhase","NoOfCells")
+
+cellPhaseProportions <- cellPhaseProportions %>%
+  group_by(Samples)%>%
+  mutate(CellProportions = NoOfCells/sum(NoOfCells)) %>%
+  ungroup()
+
+#Barplot of proportion of cells in different phases for all samples
+ggplot(cellPhaseProportions, aes(x=CellPhase,y=CellProportions, fill = CellPhase))+
+  geom_col()+
+  facet_wrap(cellPhaseProportions$Samples)+
+  theme_classic()
+
 ####################################################################Save the data###################################################################
 
 
@@ -699,4 +772,5 @@ write.csv(RNADGE, file = "data/RNADGE.csv", row.names = TRUE)
 write.csv(ATACDA, file = "data/ATACDA.csv", row.names = TRUE)
 WriteXLS::WriteXLS(Pathwayresults, ExcelFileName = "data/PathwayResults.xlsx")
 SaveSeuratRds(seurat, file = "data/FinalSeurat.RDS")
+#seurat <- readRDS("data/FinalSeurat.RDS")
 ####################################################################THE END#########################################################################
