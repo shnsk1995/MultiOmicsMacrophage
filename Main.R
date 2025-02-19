@@ -346,7 +346,7 @@ DefaultAssay(seurat) <- "RNA"
 seurat <- JoinLayers(seurat)
 
 SaveSeuratRds(seurat,"data/mergedseurat.RDS")
-#seurat <- readRDS("data/mergedseurat.RDS")
+seurat <- readRDS("data/mergedseurat.RDS")
 
 
 ####################################################################Pre process RNA and ATAC assays#########################################################################
@@ -362,6 +362,18 @@ seurat@meta.data <- seurat@meta.data %>%
 
 #Save the seurat object
 SaveSeuratRds(seurat,"data/Preprocessedseurat.RDS")
+
+####################################################################Histogram of Mito Percent########################################################################
+
+# Plot the histogram
+ggplot(seurat@meta.data, aes(x = mitoPercent, fill = orig.ident)) + 
+  geom_histogram(binwidth = 1, color = "black", alpha = 0.7) +
+  labs(title = "Mitochondrial Percentage in Each Sample", 
+       x = "Percentage of Mitochondrial Genes", 
+       y = "Cell Count") +
+  theme_minimal() +
+  facet_wrap(~ orig.ident) +
+  theme(plot.title = element_text(hjust = 0.5))
 
 ####################################################################Visualize Umaps#########################################################################
 
@@ -741,6 +753,53 @@ venn.plot <- venn.diagram(
 )
 
 grid.draw(venn.plot)
+
+####################################################################Gene LFC Vs Region LFC##################################################################
+
+#Read back region gene map data
+regionGeneMap <- read.csv(file = "data/RegionGeneMap.csv", row.names = 1)
+
+
+#Filter the rows if there are no differential expression or accessability metrics
+regionGeneMap <- regionGeneMap[!is.na(regionGeneMap$Gene_PValue),]
+regionGeneMap <- regionGeneMap[!is.na(regionGeneMap$Region_PValue),]
+
+
+#Create a data frame with required columns
+regress <- data.frame(regionGeneMap$gene_name, 
+                      regionGeneMap$query_region, 
+                      regionGeneMap$Gene_LFC, 
+                      regionGeneMap$Region_LFC)
+
+
+#Calculate average LFC for regions os same gene
+regressConcise <- regress %>%
+  group_by(regionGeneMap.gene_name) %>%
+  summarise(
+    Gene_LFC = first(regionGeneMap.Gene_LFC),  # Assuming Gene_LFC is the same for all regions of a gene
+    Avg_Region_LFC = mean(regionGeneMap.Region_LFC, na.rm = TRUE)  # Average of all associated regions
+  )
+
+
+# Define genes to highlight in red
+highlightGenes <- unique(read.table(file = "data/GenesOfInterest.txt")$V1)
+
+
+# Add a color column based on whether the gene is in the highlight list
+regressConcise <- regressConcise %>%
+  mutate(color = ifelse(regionGeneMap.gene_name %in% highlightGenes, "red", "black"))
+
+
+# Plot scatter plot
+ggplot(regressConcise, aes(x = Gene_LFC, y = Avg_Region_LFC, color = color)) +
+  geom_point() +
+  geom_smooth()+
+  #scale_color_identity() +  # Uses the specified colors directly
+  scale_color_manual(values = c("black", "red"), 
+                     labels = c("Significant genes", "Genes of Interest")) +
+  labs(x = "Gene LFC", y = "Average Region LFC", title = "Scatter Plot of Gene vs Region LFC") +
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5))
 
 
 ####################################################################DO Cell Cycle Scoring###################################################################
